@@ -65,7 +65,7 @@ Node + TypeScript. Локально и в Docker железо мокается (
 
 ![Схема подключения Pi Zero W, питания, BME280 и реле](docs/wiring.png)
 
-Исходник: [docs/wiring.svg](docs/wiring.svg).
+Исходник схемы: [docs/wiring.svg](docs/wiring.svg). Фото модулей в SVG берутся из [docs/pi-zero.svg](docs/pi-zero.svg) и [docs/tp4056.svg](docs/tp4056.svg). BME280 нарисован в самой схеме (есть также [docs/bme280.svg](docs/bme280.svg)). Растр README — `docs/wiring.png`, чтобы GitHub показывал картинку без санитизации SVG.
 
 ### Питание (Li-ion + зарядка)
 
@@ -148,7 +148,7 @@ I2C включить в `raspi-config`. Адрес BME280 обычно `0x76` и
 
 ![График](docs/ui-chart.svg)
 
-Растровые скриншоты рядом: [ui-home.png](docs/ui-home.png), [ui-settings.png](docs/ui-settings.png), [ui-chart.png](docs/ui-chart.png).
+Макеты экранов — вектор `docs/ui-home.svg`, `docs/ui-settings.svg`, `docs/ui-chart.svg`, чтобы README на GitHub рисовал их без отдельного растра.
 
 ## Docker (тест / отладка)
 
