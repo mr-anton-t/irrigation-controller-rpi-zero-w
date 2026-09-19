@@ -1,26 +1,30 @@
 import cron, { type ScheduledTask } from "node-cron";
-import { getSettings } from "./db.js";
+import { listSchedules, scheduleToCron } from "./db.js";
 import type { Hardware } from "./hardware/types.js";
 import { setRelay } from "./relay.js";
 
-let task: ScheduledTask | null = null;
+const tasks: ScheduledTask[] = [];
 
 export function reschedule(getHw: () => Hardware): void {
-  if (task) {
-    task.stop();
-    task = null;
-  }
-  const s = getSettings();
-  if (!s.schedule_enabled) {
+  for (const t of tasks) t.stop();
+  tasks.length = 0;
+
+  const items = listSchedules().filter((s) => s.enabled);
+  if (!items.length) {
     console.log("scheduler: off");
     return;
   }
-  if (!cron.validate(s.cron_expr)) {
-    console.error("scheduler: bad cron", s.cron_expr);
-    return;
+
+  for (const s of items) {
+    const expr = scheduleToCron(s);
+    if (!cron.validate(expr)) {
+      console.error("scheduler: bad", s.id, expr);
+      continue;
+    }
+    const task = cron.schedule(expr, () => {
+      void setRelay(getHw(), true, `schedule:${s.id}`, s.duration_sec);
+    });
+    tasks.push(task);
+    console.log("scheduler:", s.id, expr, s.duration_sec, "s");
   }
-  task = cron.schedule(s.cron_expr, () => {
-    void setRelay(getHw(), true, "cron", s.duration_sec);
-  });
-  console.log("scheduler:", s.cron_expr, "duration", s.duration_sec, "s");
 }
