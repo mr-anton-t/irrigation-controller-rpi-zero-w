@@ -10,7 +10,12 @@ import {
   latestReading,
   updateSettings,
   countReadings,
+  listSchedules,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
 } from "./db.js";
+import type { Schedule } from "./db.js";
 import { createHardware } from "./hardware/index.js";
 import { startSampler } from "./sampler.js";
 import { setRelay } from "./relay.js";
@@ -58,8 +63,34 @@ app.get("/api/status", async () => ({
   relayOn: getHw().getRelay(),
   reading: latestReading() ?? null,
   settings: getSettings(),
+  schedules: listSchedules(),
   network: currentNetwork(),
 }));
+
+app.get("/api/schedules", async () => listSchedules());
+
+app.post<{ Body: Partial<Schedule> }>("/api/schedules", async (req) => {
+  const row = createSchedule(req.body ?? {});
+  reschedule(getHw);
+  return row;
+});
+
+app.put<{ Params: { id: string }; Body: Partial<Schedule> }>(
+  "/api/schedules/:id",
+  async (req, reply) => {
+    const row = updateSchedule(Number(req.params.id), req.body ?? {});
+    if (!row) return reply.code(404).send({ error: "not found" });
+    reschedule(getHw);
+    return row;
+  }
+);
+
+app.delete<{ Params: { id: string } }>("/api/schedules/:id", async (req, reply) => {
+  const ok = deleteSchedule(Number(req.params.id));
+  if (!ok) return reply.code(404).send({ error: "not found" });
+  reschedule(getHw);
+  return { ok: true };
+});
 
 app.post<{ Body: { on?: boolean; durationSec?: number } }>("/api/relay", async (req) => {
   const on = req.body?.on ?? !hw.getRelay();
