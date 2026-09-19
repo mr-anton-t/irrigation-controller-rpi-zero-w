@@ -115,7 +115,7 @@ jobs:
           if [ "${ACTION}" = "synchronize" ]; then
             BODY="Deploy-тест снова зелёный на этом PR. Повторно запросил review у Copilot."
           else
-            BODY="Deploy-тест прошёл. Назначил Copilot (\\'${REVIEWER}\\') ревьюером."
+            BODY="Deploy-тест прошёл. Назначил Copilot (copilot-pull-request-reviewer) ревьюером."
           fi
           gh api --method POST \
             -H "Accept: application/vnd.github+json" \

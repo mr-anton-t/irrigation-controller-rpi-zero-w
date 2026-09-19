@@ -46,7 +46,7 @@ Node + TypeScript. Локально и в Docker железо мокается (
 Аналоги LM2596HV (это DC-DC, вход после моста):
 
 | Модуль | Вход DC | Ток по факту | Заметка |
-|---|---|---|---|
+|---|---|---|
 | LM2596HV / HVS | 4.5–60V | ~2A | базовый вариант |
 | LM2576-HV | до 60V | ~2–3A | официальный аналог TI |
 | XL4016 8A плата с входом до 60V | 10–60V на корпусе | 3A+ с радиатором | не путать с XL4015 |
@@ -147,6 +147,21 @@ http://localhost:3000
 - `/` — кнопка полива
 - `/chart.html` — температура, влажность, точка росы
 - `/settings.html` — единицы, тема, Wi‑Fi, IP, NTP, пины
+
+## CI
+
+На каждый PR и на `push` в `main` GitHub Actions:
+
+1. Собирает TypeScript (`tsc --noEmit`).
+2. Поднимает тот же Docker Compose стек, что и локально (`USE_MOCK=true`).
+3. Стучится в UI и API: `/`, `/settings.html`, `/chart.html`, `/api/status`, `/api/settings`, `/api/network`, `/api/readings`, `POST /api/relay`.
+
+Если smoke-тест на PR зелёный:
+
+- первый прогон назначает Copilot (`copilot-pull-request-reviewer`) ревьюером;
+- каждый следующий коммит в тот же PR снова гоняет тесты и при успехе повторно запрашивает Copilot review.
+
+Workflow: [`.github/workflows/deploy-and-copilot.yml`](.github/workflows/deploy-and-copilot.yml).
 
 ## На самой Pi
 
