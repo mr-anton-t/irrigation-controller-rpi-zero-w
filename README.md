@@ -136,6 +136,20 @@ I2C включить в `raspi-config`. Адрес BME280 обычно `0x76` и
 
 Если Pi не стартует — просадка 5V, нужен преобразователь помощнее. Если `i2cdetect` пустой — проверь 3.3V и SDA/SCL. Реле молчит — часто active-low, это уже в настройках.
 
+## Интерфейс
+
+- `/` — кнопка полива
+- `/chart.html` — температура, влажность, точка росы
+- `/settings.html` — единицы, тема, Wi‑Fi, IP, NTP, пины
+
+![Главный экран](docs/ui-home.svg)
+
+![Настройки](docs/ui-settings.svg)
+
+![График](docs/ui-chart.svg)
+
+Растровые скриншоты рядом: [ui-home.png](docs/ui-home.png), [ui-settings.png](docs/ui-settings.png), [ui-chart.png](docs/ui-chart.png).
+
 ## Docker (тест / отладка)
 
 ```bash
