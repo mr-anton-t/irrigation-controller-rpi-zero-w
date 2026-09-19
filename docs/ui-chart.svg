@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="675" viewBox="0 0 960 675">
-  <rect width="960" height="675" fill="#f3f6f3"/>
-  <text x="24" y="36" font-family="system-ui,sans-serif" font-size="20" fill="#14201a">Климат</text>
-  <text x="720" y="36" font-family="system-ui,sans-serif" font-size="16" fill="#1f8f56">Кнопка   График   Настройки</text>
-  <rect x="80" y="80" width="800" height="520" rx="16" fill="#fff" stroke="#d5e0d8"/>
-  <text x="480" y="350" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" fill="#5b6f64">график климата (24 ч)</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560">
+  <rect width="960" height="560" fill="#f3f6f3"/>
+  <text x="24" y="34" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#14201a">Климат</text>
+  <text x="700" y="34" font-family="system-ui,sans-serif" font-size="15" fill="#1f8f56">Кнопка   График   Настройки</text>
+  <line x1="0" y1="52" x2="960" y2="52" stroke="#d5e0d8"/>
+  <rect x="80" y="80" width="800" height="420" rx="16" fill="#fff" stroke="#d5e0d8"/>
+  <polyline fill="none" stroke="#1f8f56" stroke-width="3" points="120,360 220,300 320,280 420,240 520,250 620,220 720,230 820,210"/>
+  <text x="480" y="470" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" fill="#5b6f64">температура / влажность / точка росы</text>
 </svg>
