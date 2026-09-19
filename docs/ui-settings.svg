@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560">
+  <rect width="960" height="560" fill="#f3f6f3"/>
+  <text x="24" y="34" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#14201a">Настройки</text>
+  <text x="700" y="34" font-family="system-ui,sans-serif" font-size="15" fill="#1f8f56">Кнопка   График   Настройки</text>
+  <line x1="0" y1="52" x2="960" y2="52" stroke="#d5e0d8"/>
+  <rect x="80" y="76" width="390" height="200" rx="16" fill="#fff" stroke="#d5e0d8"/>
+  <text x="100" y="108" font-family="system-ui,sans-serif" font-size="16" font-weight="700" fill="#14201a">Единицы</text>
+  <text x="100" y="140" font-family="system-ui,sans-serif" font-size="14" fill="#14201a">°C · % · гПа / hPa</text>
+  <rect x="490" y="76" width="390" height="200" rx="16" fill="#fff" stroke="#d5e0d8"/>
+  <text x="510" y="108" font-family="system-ui,sans-serif" font-size="16" font-weight="700" fill="#14201a">Тема</text>
+  <text x="510" y="140" font-family="system-ui,sans-serif" font-size="14" fill="#14201a">светлая / тёмная / системная</text>
+  <rect x="80" y="292" width="390" height="200" rx="16" fill="#fff" stroke="#d5e0d8"/>
+  <text x="100" y="324" font-family="system-ui,sans-serif" font-size="16" font-weight="700" fill="#14201a">Пины</text>
+  <text x="100" y="356" font-family="system-ui,sans-serif" font-size="14" fill="#14201a">GPIO 17 · active-low · I2C 1 · 0x76</text>
+  <rect x="490" y="292" width="390" height="200" rx="16" fill="#fff" stroke="#d5e0d8"/>
+  <text x="510" y="324" font-family="system-ui,sans-serif" font-size="16" font-weight="700" fill="#14201a">Сеть</text>
+  <text x="510" y="356" font-family="system-ui,sans-serif" font-size="14" fill="#14201a">irrigation.local · 192.168.1.50</text>
+</svg>
