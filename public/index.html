@@ -32,13 +32,11 @@
       </div>
     </div>
     <div class="card" style="margin-top:12px">
-      <div class="muted">Расписание</div>
-      <div class="row">
-        <label><input type="checkbox" id="enabled" /> включено</label>
-        <input id="cron" placeholder="0 7 * * *" style="min-width:140px" />
-        <button class="sec" id="save">Сохранить</button>
+      <div class="row" style="margin-top:0; justify-content:space-between">
+        <div class="muted">Расписания</div>
+        <button class="sec" id="add-schedule" type="button">Добавить</button>
       </div>
-      <p class="muted">cron: мин час день месяц день-недели. Пример 0 7 * * * — каждый день в 07:00.</p>
+      <div id="schedules"></div>
     </div>
   </main>
   <script src="/app.js"></script>
