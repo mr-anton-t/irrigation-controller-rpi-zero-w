@@ -66,3 +66,8 @@ canvas { width: 100% !important; max-height: 70dvh; }
   border-radius: 999px; padding: 8px 12px; cursor: pointer;
 }
 .seg button.on { background: var(--accent); color: #06210f; border-color: var(--accent); }
+.sched { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+.days { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.day { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.day input { width: auto; }
+button.sec.danger { color: var(--danger); }
