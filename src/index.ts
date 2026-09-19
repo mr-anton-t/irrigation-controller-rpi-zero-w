@@ -14,6 +14,9 @@ import {
   createSchedule,
   updateSchedule,
   deleteSchedule,
+  migrateLegacySchedule,
+  parseScheduleId,
+  ValidationError,
 } from "./db.js";
 import type { Schedule } from "./db.js";
 import { createHardware } from "./hardware/index.js";
@@ -48,9 +51,17 @@ async function seedIfEmpty() {
   console.log("seeded 24h mock history");
 }
 
+function sendError(reply: { code: (n: number) => { send: (b: unknown) => unknown } }, err: unknown) {
+  if (err instanceof ValidationError) {
+    return reply.code(400).send({ error: err.message });
+  }
+  throw err;
+}
+
 let hw = await createHardware();
 if (config.useMock) await seedIfEmpty();
 const getHw = () => hw;
+migrateLegacySchedule();
 startSampler(getHw);
 reschedule(getHw);
 
@@ -69,27 +80,41 @@ app.get("/api/status", async () => ({
 
 app.get("/api/schedules", async () => listSchedules());
 
-app.post<{ Body: Partial<Schedule> }>("/api/schedules", async (req) => {
-  const row = createSchedule(req.body ?? {});
-  reschedule(getHw);
-  return row;
+app.post<{ Body: Partial<Schedule> }>("/api/schedules", async (req, reply) => {
+  try {
+    const row = createSchedule(req.body ?? {});
+    reschedule(getHw);
+    return row;
+  } catch (err) {
+    return sendError(reply, err);
+  }
 });
 
 app.put<{ Params: { id: string }; Body: Partial<Schedule> }>(
   "/api/schedules/:id",
   async (req, reply) => {
-    const row = updateSchedule(Number(req.params.id), req.body ?? {});
-    if (!row) return reply.code(404).send({ error: "not found" });
-    reschedule(getHw);
-    return row;
+    try {
+      const id = parseScheduleId(req.params.id);
+      const row = updateSchedule(id, req.body ?? {});
+      if (!row) return reply.code(404).send({ error: "not found" });
+      reschedule(getHw);
+      return row;
+    } catch (err) {
+      return sendError(reply, err);
+    }
   }
 );
 
 app.delete<{ Params: { id: string } }>("/api/schedules/:id", async (req, reply) => {
-  const ok = deleteSchedule(Number(req.params.id));
-  if (!ok) return reply.code(404).send({ error: "not found" });
-  reschedule(getHw);
-  return { ok: true };
+  try {
+    const id = parseScheduleId(req.params.id);
+    const ok = deleteSchedule(id);
+    if (!ok) return reply.code(404).send({ error: "not found" });
+    reschedule(getHw);
+    return { ok: true };
+  } catch (err) {
+    return sendError(reply, err);
+  }
 });
 
 app.post<{ Body: { on?: boolean; durationSec?: number } }>("/api/relay", async (req) => {
@@ -110,7 +135,6 @@ app.get("/api/network", async () => currentNetwork());
 app.put<{ Body: Partial<Settings> }>("/api/settings", async (req) => {
   const prev = getSettings();
   const next = updateSettings(req.body ?? {});
-  reschedule(getHw);
   const pinsChanged =
     prev.relay_gpio !== next.relay_gpio ||
     prev.relay_active_low !== next.relay_active_low ||
