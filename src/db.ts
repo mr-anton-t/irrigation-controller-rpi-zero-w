@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { config } from "./config.js";
 
 mkdirSync(dirname(config.dbPath), { recursive: true });
+
 export const db = new Database(config.dbPath);
 db.pragma("journal_mode = WAL");
 
@@ -17,6 +18,7 @@ CREATE TABLE IF NOT EXISTS readings (
   dew_point_c REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_readings_ts ON readings(ts);
+
 CREATE TABLE IF NOT EXISTS settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   schedule_enabled INTEGER NOT NULL DEFAULT 0,
@@ -38,6 +40,7 @@ CREATE TABLE IF NOT EXISTS settings (
   bme280_address INTEGER NOT NULL DEFAULT 118,
   ntp_server TEXT NOT NULL DEFAULT 'pool.ntp.org'
 );
+
 CREATE TABLE IF NOT EXISTS irrigation_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ts INTEGER NOT NULL,
@@ -45,13 +48,17 @@ CREATE TABLE IF NOT EXISTS irrigation_events (
   source TEXT NOT NULL,
   duration_sec INTEGER
 );
+
 INSERT OR IGNORE INTO settings (id) VALUES (1);
 `);
 
 function ensureColumn(name: string, ddl: string) {
   const cols = db.prepare(`PRAGMA table_info(settings)`).all() as { name: string }[];
-  if (!cols.some((c) => c.name === name)) db.exec(`ALTER TABLE settings ADD COLUMN ${ddl}`);
+  if (!cols.some((c) => c.name === name)) {
+    db.exec(`ALTER TABLE settings ADD COLUMN ${ddl}`);
+  }
 }
+
 ensureColumn("temp_unit", "temp_unit TEXT NOT NULL DEFAULT 'C'");
 ensureColumn("humidity_unit", "humidity_unit TEXT NOT NULL DEFAULT 'pct'");
 ensureColumn("pressure_unit", "pressure_unit TEXT NOT NULL DEFAULT 'hPa'");
@@ -69,36 +76,83 @@ ensureColumn("bme280_address", "bme280_address INTEGER NOT NULL DEFAULT 118");
 ensureColumn("ntp_server", "ntp_server TEXT NOT NULL DEFAULT 'pool.ntp.org'");
 
 export type Reading = {
-  id?: number; ts: number; temp_c: number; humidity: number;
-  pressure_hpa: number | null; dew_point_c: number;
+  id?: number;
+  ts: number;
+  temp_c: number;
+  humidity: number;
+  pressure_hpa: number | null;
+  dew_point_c: number;
 };
+
 export type Settings = {
-  schedule_enabled: boolean; cron_expr: string; duration_sec: number;
-  temp_unit: "C" | "F"; humidity_unit: "pct" | "ratio";
+  schedule_enabled: boolean;
+  cron_expr: string;
+  duration_sec: number;
+  temp_unit: "C" | "F";
+  humidity_unit: "pct" | "ratio";
   pressure_unit: "hPa" | "mmHg" | "inHg";
   theme: "light" | "dark" | "system";
-  wifi_ssid: string; wifi_password: string; domain: string;
-  static_ip: string; gateway: string; dns: string;
-  relay_gpio: number; relay_active_low: boolean; i2c_bus: number; bme280_address: number;
+  wifi_ssid: string;
+  wifi_password: string;
+  domain: string;
+  static_ip: string;
+  gateway: string;
+  dns: string;
+  relay_gpio: number;
+  relay_active_low: boolean;
+  i2c_bus: number;
+  bme280_address: number;
   ntp_server: string;
 };
+
 const SETTINGS_KEYS: (keyof Settings)[] = [
-  "schedule_enabled","cron_expr","duration_sec","temp_unit","humidity_unit","pressure_unit",
-  "theme","wifi_ssid","wifi_password","domain","static_ip","gateway","dns",
-  "relay_gpio","relay_active_low","i2c_bus","bme280_address","ntp_server",
+  "schedule_enabled",
+  "cron_expr",
+  "duration_sec",
+  "temp_unit",
+  "humidity_unit",
+  "pressure_unit",
+  "theme",
+  "wifi_ssid",
+  "wifi_password",
+  "domain",
+  "static_ip",
+  "gateway",
+  "dns",
+  "relay_gpio",
+  "relay_active_low",
+  "i2c_bus",
+  "bme280_address",
+  "ntp_server",
 ];
+
 export function insertReading(r: Reading): void {
-  db.prepare(`INSERT INTO readings (ts, temp_c, humidity, pressure_hpa, dew_point_c)
-     VALUES (@ts, @temp_c, @humidity, @pressure_hpa, @dew_point_c)`).run(r);
+  db.prepare(
+    `INSERT INTO readings (ts, temp_c, humidity, pressure_hpa, dew_point_c)
+     VALUES (@ts, @temp_c, @humidity, @pressure_hpa, @dew_point_c)`
+  ).run(r);
 }
+
 export function getReadings(fromTs?: number, toTs?: number, limit = 2000): Reading[] {
   const from = fromTs ?? Date.now() - 24 * 60 * 60 * 1000;
   const to = toTs ?? Date.now();
-  return db.prepare(`SELECT ts, temp_c, humidity, pressure_hpa, dew_point_c FROM readings WHERE ts BETWEEN ? AND ? ORDER BY ts ASC LIMIT ?`).all(from, to, limit) as Reading[];
+  return db
+    .prepare(
+      `SELECT ts, temp_c, humidity, pressure_hpa, dew_point_c
+       FROM readings WHERE ts BETWEEN ? AND ? ORDER BY ts ASC LIMIT ?`
+    )
+    .all(from, to, limit) as Reading[];
 }
+
 export function latestReading(): Reading | undefined {
-  return db.prepare(`SELECT ts, temp_c, humidity, pressure_hpa, dew_point_c FROM readings ORDER BY ts DESC LIMIT 1`).get() as Reading | undefined;
+  return db
+    .prepare(
+      `SELECT ts, temp_c, humidity, pressure_hpa, dew_point_c
+       FROM readings ORDER BY ts DESC LIMIT 1`
+    )
+    .get() as Reading | undefined;
 }
+
 function rowToSettings(row: Record<string, unknown>): Settings {
   return {
     schedule_enabled: Boolean(row.schedule_enabled),
@@ -106,8 +160,14 @@ function rowToSettings(row: Record<string, unknown>): Settings {
     duration_sec: Number(row.duration_sec ?? 60),
     temp_unit: row.temp_unit === "F" ? "F" : "C",
     humidity_unit: row.humidity_unit === "ratio" ? "ratio" : "pct",
-    pressure_unit: row.pressure_unit === "mmHg" || row.pressure_unit === "inHg" ? row.pressure_unit : "hPa",
-    theme: row.theme === "light" || row.theme === "dark" || row.theme === "system" ? row.theme : "system",
+    pressure_unit:
+      row.pressure_unit === "mmHg" || row.pressure_unit === "inHg"
+        ? row.pressure_unit
+        : "hPa",
+    theme:
+      row.theme === "light" || row.theme === "dark" || row.theme === "system"
+        ? row.theme
+        : "system",
     wifi_ssid: String(row.wifi_ssid ?? ""),
     wifi_password: String(row.wifi_password ?? ""),
     domain: String(row.domain ?? ""),
@@ -121,31 +181,68 @@ function rowToSettings(row: Record<string, unknown>): Settings {
     ntp_server: String(row.ntp_server || "pool.ntp.org"),
   };
 }
+
 export function getSettings(): Settings {
-  return rowToSettings(db.prepare(`SELECT * FROM settings WHERE id = 1`).get() as Record<string, unknown>);
+  const row = db.prepare(`SELECT * FROM settings WHERE id = 1`).get() as Record<
+    string,
+    unknown
+  >;
+  return rowToSettings(row);
 }
+
 export function updateSettings(partial: Partial<Settings>): Settings {
-  const next: Settings = { ...getSettings() };
+  const cur = getSettings();
+  const next: Settings = { ...cur };
   for (const key of SETTINGS_KEYS) {
     const val = partial[key];
-    if (val !== undefined) (next as unknown as Record<string, unknown>)[key] = val;
+    if (val !== undefined) {
+      (next as unknown as Record<string, unknown>)[key] = val;
+    }
   }
-  db.prepare(`UPDATE settings SET
-      schedule_enabled=@schedule_enabled, cron_expr=@cron_expr, duration_sec=@duration_sec,
-      temp_unit=@temp_unit, humidity_unit=@humidity_unit, pressure_unit=@pressure_unit,
-      theme=@theme, wifi_ssid=@wifi_ssid, wifi_password=@wifi_password, domain=@domain,
-      static_ip=@static_ip, gateway=@gateway, dns=@dns, relay_gpio=@relay_gpio,
-      relay_active_low=@relay_active_low, i2c_bus=@i2c_bus, bme280_address=@bme280_address,
-      ntp_server=@ntp_server
-     WHERE id=1`).run({ ...next, schedule_enabled: Number(next.schedule_enabled), relay_active_low: Number(next.relay_active_low) });
+  db.prepare(
+    `UPDATE settings SET
+      schedule_enabled = @schedule_enabled,
+      cron_expr = @cron_expr,
+      duration_sec = @duration_sec,
+      temp_unit = @temp_unit,
+      humidity_unit = @humidity_unit,
+      pressure_unit = @pressure_unit,
+      theme = @theme,
+      wifi_ssid = @wifi_ssid,
+      wifi_password = @wifi_password,
+      domain = @domain,
+      static_ip = @static_ip,
+      gateway = @gateway,
+      dns = @dns,
+      relay_gpio = @relay_gpio,
+      relay_active_low = @relay_active_low,
+      i2c_bus = @i2c_bus,
+      bme280_address = @bme280_address,
+      ntp_server = @ntp_server
+     WHERE id = 1`
+  ).run({
+    ...next,
+    schedule_enabled: Number(next.schedule_enabled),
+    relay_active_low: Number(next.relay_active_low),
+  });
   return getSettings();
 }
+
 export function insertEvent(action: string, source: string, durationSec?: number): void {
-  db.prepare(`INSERT INTO irrigation_events (ts, action, source, duration_sec) VALUES (?, ?, ?, ?)`).run(Date.now(), action, source, durationSec ?? null);
+  db.prepare(
+    `INSERT INTO irrigation_events (ts, action, source, duration_sec) VALUES (?, ?, ?, ?)`
+  ).run(Date.now(), action, source, durationSec ?? null);
 }
+
 export function getEvents(limit = 50) {
-  return db.prepare(`SELECT ts, action, source, duration_sec FROM irrigation_events ORDER BY ts DESC LIMIT ?`).all(limit);
+  return db
+    .prepare(
+      `SELECT ts, action, source, duration_sec FROM irrigation_events ORDER BY ts DESC LIMIT ?`
+    )
+    .all(limit);
 }
+
 export function countReadings(): number {
-  return (db.prepare(`SELECT COUNT(*) AS n FROM readings`).get() as { n: number }).n;
+  const row = db.prepare(`SELECT COUNT(*) AS n FROM readings`).get() as { n: number };
+  return row.n;
 }

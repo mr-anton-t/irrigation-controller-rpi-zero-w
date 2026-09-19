@@ -20,47 +20,104 @@
     <div class="grid two">
       <section class="card">
         <strong>Единицы</strong>
-        <div class="field"><label>Температура и точка росы</label>
-          <select id="temp_unit"><option value="C">°C</option><option value="F">°F</option></select></div>
-        <div class="field"><label>Влажность</label>
-          <select id="humidity_unit"><option value="pct">%</option><option value="ratio">0–1</option></select></div>
-        <div class="field"><label>Давление</label>
-          <select id="pressure_unit"><option value="hPa">hPa</option><option value="mmHg">mmHg</option><option value="inHg">inHg</option></select></div>
+        <div class="field">
+          <label>Температура и точка росы</label>
+          <select id="temp_unit">
+            <option value="C">°C</option>
+            <option value="F">°F</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Влажность</label>
+          <select id="humidity_unit">
+            <option value="pct">%</option>
+            <option value="ratio">доля 0–1</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Давление</label>
+          <select id="pressure_unit">
+            <option value="hPa">гПа / hPa</option>
+            <option value="mmHg">мм рт. ст.</option>
+            <option value="inHg">inHg</option>
+          </select>
+        </div>
       </section>
+
       <section class="card">
         <strong>Тема</strong>
+        <p class="muted">Светлая, тёмная или как в системе.</p>
         <div class="seg" style="margin-top:12px">
           <button type="button" data-theme="light">Светлая</button>
           <button type="button" data-theme="dark">Тёмная</button>
           <button type="button" data-theme="system">Системная</button>
         </div>
       </section>
+
       <section class="card">
         <strong>Пины</strong>
-        <p class="muted">BCM. I2C1: SDA=GPIO2 SCL=GPIO3</p>
-        <div class="field"><label>GPIO реле</label><input id="relay_gpio" type="number" min="2" max="27" /></div>
-        <div class="field"><label><input type="checkbox" id="relay_active_low" /> active-low</label></div>
-        <div class="field"><label>I2C</label><input id="i2c_bus" type="number" min="0" max="2" /></div>
-        <div class="field"><label>BME280</label>
-          <select id="bme280_address"><option value="118">0x76</option><option value="119">0x77</option></select></div>
+        <p class="muted">BCM-номера. I2C1 на Zero W: SDA=GPIO2, SCL=GPIO3.</p>
+        <div class="field">
+          <label>GPIO реле</label>
+          <input id="relay_gpio" type="number" min="2" max="27" />
+        </div>
+        <div class="field">
+          <label><input type="checkbox" id="relay_active_low" /> реле active-low</label>
+        </div>
+        <div class="field">
+          <label>Шина I2C</label>
+          <input id="i2c_bus" type="number" min="0" max="2" />
+        </div>
+        <div class="field">
+          <label>Адрес BME280</label>
+          <select id="bme280_address">
+            <option value="118">0x76</option>
+            <option value="119">0x77</option>
+          </select>
+        </div>
       </section>
+
       <section class="card">
-        <strong>Wi-Fi</strong>
-        <div class="field"><label>SSID</label><input id="wifi_ssid" /></div>
-        <div class="field"><label>Пароль</label><input id="wifi_password" type="password" /></div>
+        <strong>Wi‑Fi</strong>
+        <div class="field">
+          <label>SSID</label>
+          <input id="wifi_ssid" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label>Пароль</label>
+          <input id="wifi_password" type="password" autocomplete="new-password" />
+        </div>
       </section>
+
       <section class="card">
-        <strong>Сеть</strong>
-        <p class="muted" id="netnow">IP: —</p>
-        <div class="field"><label>Домен</label><input id="domain" /></div>
-        <div class="field"><label>IP</label><input id="static_ip" /></div>
-        <div class="field"><label>Шлюз</label><input id="gateway" /></div>
-        <div class="field"><label>DNS</label><input id="dns" /></div>
-        <div class="field"><label>NTP</label><input id="ntp_server" placeholder="pool.ntp.org" /></div>
+        <strong>Сеть и домен</strong>
+        <p class="muted" id="netnow">текущий IP: —</p>
+        <div class="field">
+          <label>Домен / hostname</label>
+          <input id="domain" placeholder="irrigation.local" />
+        </div>
+        <div class="field">
+          <label>Статический IP (пусто = DHCP)</label>
+          <input id="static_ip" placeholder="192.168.1.50" />
+        </div>
+        <div class="field">
+          <label>Шлюз</label>
+          <input id="gateway" placeholder="192.168.1.1" />
+        </div>
+        <div class="field">
+          <label>DNS</label>
+          <input id="dns" placeholder="1.1.1.1" />
+        </div>
+        <div class="field">
+          <label>NTP-сервер</label>
+          <input id="ntp_server" placeholder="pool.ntp.org" />
+        </div>
         <p class="muted">По умолчанию pool.ntp.org</p>
       </section>
     </div>
-    <div class="row"><button class="sec" id="save">Сохранить</button></div>
+    <div class="row">
+      <button class="sec" id="save">Сохранить настройки</button>
+    </div>
     <p class="toast" id="toast"></p>
   </main>
   <script src="/settings-page.js"></script>

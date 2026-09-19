@@ -30,7 +30,7 @@ async function fill() {
   $("i2c_bus").value = s.i2c_bus;
   $("bme280_address").value = String(s.bme280_address);
   $("netnow").textContent =
-    `сейчас: ${net.hostname} \u00b7 ${net.primary_ip}` + (net.mock ? " (mock)" : "");
+    `сейчас: ${net.hostname} · ${net.primary_ip}` + (net.mock ? " (mock)" : "");
   markTheme(s.theme);
 }
 

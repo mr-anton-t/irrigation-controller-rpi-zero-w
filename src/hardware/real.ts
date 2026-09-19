@@ -1,6 +1,10 @@
 import type { Hardware, SensorSample } from "./types.js";
 import { getSettings } from "../db.js";
 
+/**
+ * Real drivers are optional so Docker/dev installs stay light.
+ * On the Pi: npm i onoff bme280
+ */
 export async function createRealHardware(): Promise<Hardware> {
   const pins = getSettings();
   let Gpio: any;
@@ -10,7 +14,7 @@ export async function createRealHardware(): Promise<Hardware> {
     bme280mod = await import("bme280" as string);
   } catch {
     throw new Error(
-      "Real drivers missing. On Pi: npm i onoff bme280. Or USE_MOCK=true."
+      "Реальные драйверы не установлены. На Pi: npm i onoff bme280. Или USE_MOCK=true."
     );
   }
 

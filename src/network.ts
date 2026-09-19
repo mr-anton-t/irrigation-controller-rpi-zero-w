@@ -24,15 +24,16 @@ export function currentNetwork() {
   };
 }
 
+/** On a real Pi this would write NetworkManager / dhcpcd. In mock we only persist settings. */
 export function applyNetworkHint(s: Settings): { applied: boolean; note: string } {
   if (config.useMock) {
     return {
       applied: false,
-      note: "Mock: SSID/IP/domain saved in DB, OS unchanged.",
+      note: "Mock: SSID/IP/домен сохранены в БД, система не менялась.",
     };
   }
   return {
     applied: false,
-    note: `Saved. Apply Wi-Fi (${s.wifi_ssid || "-"}) and IP (${s.static_ip || "DHCP"}) on Pi via nmcli/dhcpcd separately.`,
+    note: `Сохранено. Применить Wi‑Fi (${s.wifi_ssid || "—"}) и IP (${s.static_ip || "DHCP"}) на Pi нужно через nmcli/dhcpcd отдельно.`,
   };
 }
