@@ -21,6 +21,18 @@ import type { Settings } from "./db.js";
 const root = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(root, "..", "public");
 
+function processMemory() {
+  const m = process.memoryUsage();
+  const mb = (n: number) => Math.round((n / 1024 / 1024) * 10) / 10;
+  return {
+    rss_mb: mb(m.rss),
+    heap_used_mb: mb(m.heapUsed),
+    heap_total_mb: mb(m.heapTotal),
+    external_mb: mb(m.external),
+    array_buffers_mb: mb(m.arrayBuffers),
+  };
+}
+
 async function seedIfEmpty() {
   if (countReadings() > 0) return;
   const { dewPointC } = await import("./dewpoint.js");
@@ -59,6 +71,7 @@ app.get("/api/status", async () => ({
   reading: latestReading() ?? null,
   settings: getSettings(),
   network: currentNetwork(),
+  memory: processMemory(),
 }));
 
 app.post<{ Body: { on?: boolean; durationSec?: number } }>("/api/relay", async (req) => {
