@@ -1,4 +1,4 @@
-import { listSchedules, scheduleMatchesDow } from "./db.js";
+import { listSchedules, markScheduleFired, scheduleFiredStamp, scheduleMatchesDow } from "./db.js";
 import type { Hardware } from "./hardware/types.js";
 import { setRelay } from "./relay.js";
 
@@ -16,6 +16,7 @@ function tick(): void {
   const hm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
   const dow = now.getDay();
   const dayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const stamp = `${dayKey}T${hm}`;
 
   for (const key of [...fired]) {
     const at = key.indexOf("@");
@@ -27,9 +28,13 @@ function tick(): void {
     if (!s.enabled) continue;
     if (!scheduleMatchesDow(s.days, dow)) continue;
     if (s.time_hm !== hm) continue;
-    const key = `${s.id}@${dayKey}T${hm}`;
-    if (fired.has(key)) continue;
+    const key = `${s.id}@${stamp}`;
+    if (fired.has(key) || scheduleFiredStamp(s.id) === stamp) {
+      fired.add(key);
+      continue;
+    }
     fired.add(key);
+    markScheduleFired(s.id, stamp);
     void setRelay(getHwRef(), true, `schedule:${s.id}`, s.duration_sec);
   }
 }

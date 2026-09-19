@@ -28,6 +28,12 @@ function daysFromChecks(root) {
   return picked.join(",");
 }
 
+function timeHm(value) {
+  const raw = String(value || "").trim();
+  const m = raw.match(/^([01]\d|2[0-3]):([0-5]\d)/);
+  return m ? `${m[1]}:${m[2]}` : raw.slice(0, 5);
+}
+
 function scheduleCard(s) {
   const set = parseDays(s.days);
   const allOn = s.days === "all" || set.size === 7;
@@ -160,7 +166,7 @@ $("schedules").onclick = async (ev) => {
       body: JSON.stringify({
         enabled: card.querySelector("[data-en]").checked,
         days,
-        time_hm: card.querySelector("[data-time]").value || "07:00",
+        time_hm: timeHm(card.querySelector("[data-time]").value) || "07:00",
         duration_sec: Number(card.querySelector("[data-dur]").value) || 60,
       }),
     });
@@ -194,11 +200,22 @@ $("schedules").onchange = async (ev) => {
     return;
   }
   if (t.dataset.en !== undefined) {
-    await fetch(`/api/schedules/${card.dataset.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled: t.checked }),
-    });
+    const wanted = t.checked;
+    try {
+      const res = await fetch(`/api/schedules/${card.dataset.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: wanted }),
+      });
+      if (!res.ok) {
+        t.checked = !wanted;
+        const err = await res.json().catch(() => ({ error: "ошибка" }));
+        alert(err.error || "Не сохранено");
+      }
+    } catch {
+      t.checked = !wanted;
+      alert("Не сохранено");
+    }
     return;
   }
   if (t.dataset.time !== undefined || t.dataset.dur !== undefined) {

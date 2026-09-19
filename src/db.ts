@@ -56,33 +56,35 @@ CREATE TABLE IF NOT EXISTS schedules (
   enabled INTEGER NOT NULL DEFAULT 1,
   days TEXT NOT NULL DEFAULT 'all',
   time_hm TEXT NOT NULL DEFAULT '07:00',
-  duration_sec INTEGER NOT NULL DEFAULT 60
+  duration_sec INTEGER NOT NULL DEFAULT 60,
+  last_fired TEXT NOT NULL DEFAULT ''
 );
 `);
 
-function ensureColumn(name: string, ddl: string) {
-  const cols = db.prepare(`PRAGMA table_info(settings)`).all() as { name: string }[];
+function ensureColumn(table: string, name: string, ddl: string) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!cols.some((c) => c.name === name)) {
-    db.exec(`ALTER TABLE settings ADD COLUMN ${ddl}`);
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
   }
 }
 
-ensureColumn("temp_unit", "temp_unit TEXT NOT NULL DEFAULT 'C'");
-ensureColumn("humidity_unit", "humidity_unit TEXT NOT NULL DEFAULT 'pct'");
-ensureColumn("pressure_unit", "pressure_unit TEXT NOT NULL DEFAULT 'hPa'");
-ensureColumn("theme", "theme TEXT NOT NULL DEFAULT 'system'");
-ensureColumn("wifi_ssid", "wifi_ssid TEXT NOT NULL DEFAULT ''");
-ensureColumn("wifi_password", "wifi_password TEXT NOT NULL DEFAULT ''");
-ensureColumn("domain", "domain TEXT NOT NULL DEFAULT ''");
-ensureColumn("static_ip", "static_ip TEXT NOT NULL DEFAULT ''");
-ensureColumn("gateway", "gateway TEXT NOT NULL DEFAULT ''");
-ensureColumn("dns", "dns TEXT NOT NULL DEFAULT ''");
-ensureColumn("relay_gpio", "relay_gpio INTEGER NOT NULL DEFAULT 17");
-ensureColumn("relay_active_low", "relay_active_low INTEGER NOT NULL DEFAULT 1");
-ensureColumn("i2c_bus", "i2c_bus INTEGER NOT NULL DEFAULT 1");
-ensureColumn("bme280_address", "bme280_address INTEGER NOT NULL DEFAULT 118");
-ensureColumn("ntp_server", "ntp_server TEXT NOT NULL DEFAULT 'pool.ntp.org'");
-ensureColumn("schedules_imported", "schedules_imported INTEGER NOT NULL DEFAULT 0");
+ensureColumn("settings", "temp_unit", "temp_unit TEXT NOT NULL DEFAULT 'C'");
+ensureColumn("settings", "humidity_unit", "humidity_unit TEXT NOT NULL DEFAULT 'pct'");
+ensureColumn("settings", "pressure_unit", "pressure_unit TEXT NOT NULL DEFAULT 'hPa'");
+ensureColumn("settings", "theme", "theme TEXT NOT NULL DEFAULT 'system'");
+ensureColumn("settings", "wifi_ssid", "wifi_ssid TEXT NOT NULL DEFAULT ''");
+ensureColumn("settings", "wifi_password", "wifi_password TEXT NOT NULL DEFAULT ''");
+ensureColumn("settings", "domain", "domain TEXT NOT NULL DEFAULT ''");
+ensureColumn("settings", "static_ip", "static_ip TEXT NOT NULL DEFAULT ''");
+ensureColumn("settings", "gateway", "gateway TEXT NOT NULL DEFAULT ''");
+ensureColumn("settings", "dns", "dns TEXT NOT NULL DEFAULT ''");
+ensureColumn("settings", "relay_gpio", "relay_gpio INTEGER NOT NULL DEFAULT 17");
+ensureColumn("settings", "relay_active_low", "relay_active_low INTEGER NOT NULL DEFAULT 1");
+ensureColumn("settings", "i2c_bus", "i2c_bus INTEGER NOT NULL DEFAULT 1");
+ensureColumn("settings", "bme280_address", "bme280_address INTEGER NOT NULL DEFAULT 118");
+ensureColumn("settings", "ntp_server", "ntp_server TEXT NOT NULL DEFAULT 'pool.ntp.org'");
+ensureColumn("settings", "schedules_imported", "schedules_imported INTEGER NOT NULL DEFAULT 0");
+ensureColumn("schedules", "last_fired", "last_fired TEXT NOT NULL DEFAULT ''");
 
 export type Reading = {
   id?: number;
@@ -152,7 +154,8 @@ const SETTINGS_KEYS: (keyof Settings)[] = [
   "schedules_imported",
 ];
 
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/;
+const MAX_CRON_SLOTS = 24;
 
 export function insertReading(r: Reading): void {
   db.prepare(
@@ -290,11 +293,35 @@ export function listSchedules(): Schedule[] {
     .map((r) => rowToSchedule(r as Record<string, unknown>));
 }
 
-function cronFieldSingle(field: string, min: number, max: number): number | null {
-  if (!/^\d+$/.test(field)) return null;
-  const n = Number(field);
-  if (!Number.isInteger(n) || n < min || n > max) return null;
-  return n;
+function expandCronField(field: string, min: number, max: number): number[] | null {
+  const raw = String(field || "").trim();
+  if (!raw) return null;
+  const out = new Set<number>();
+  for (const token of raw.split(",")) {
+    const piece = token.trim();
+    if (!piece) continue;
+    const [rangePart, stepPart] = piece.split("/");
+    const step = stepPart === undefined ? 1 : Number(stepPart);
+    if (!Number.isInteger(step) || step < 1) return null;
+    let start: number;
+    let end: number;
+    if (rangePart === "*") {
+      start = min;
+      end = max;
+    } else if (rangePart.includes("-")) {
+      const [aStr, bStr] = rangePart.split("-");
+      start = Number(aStr);
+      end = Number(bStr);
+    } else {
+      start = Number(rangePart);
+      end = start;
+    }
+    if (!Number.isInteger(start) || !Number.isInteger(end)) return null;
+    if (start < min || end > max || start > end) return null;
+    for (let i = start; i <= end; i += step) out.add(i);
+  }
+  if (!out.size) return null;
+  return [...out].sort((a, b) => a - b);
 }
 
 function expandDow(field: string): string {
@@ -343,29 +370,50 @@ function expandDow(field: string): string {
   return [...out].sort((a, b) => a - b).join(",");
 }
 
-export function cronToSchedule(expr: string): { days: string; time_hm: string } {
+function fieldIsAny(field: string): boolean {
+  const raw = String(field || "").trim();
+  return raw === "*" || raw === "*/1";
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+export function cronToSchedules(expr: string): { days: string; time_hm: string }[] {
   const parts = String(expr || "").trim().split(/\s+/);
   let minuteF: string;
   let hourF: string;
+  let domF: string;
+  let monthF: string;
   let dowF: string;
   if (parts.length >= 6) {
     minuteF = parts[1];
     hourF = parts[2];
+    domF = parts[3];
+    monthF = parts[4];
     dowF = parts[5];
-  } else if (parts.length >= 5) {
+  } else if (parts.length === 5) {
     minuteF = parts[0];
     hourF = parts[1];
+    domF = parts[2];
+    monthF = parts[3];
     dowF = parts[4];
   } else {
-    return { days: "all", time_hm: "07:00" };
+    return [];
   }
-  const minute = cronFieldSingle(minuteF, 0, 59);
-  const hour = cronFieldSingle(hourF, 0, 23);
-  const time_hm =
-    minute === null || hour === null
-      ? "07:00"
-      : `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  return { days: expandDow(dowF), time_hm };
+  if (!fieldIsAny(domF) || !fieldIsAny(monthF)) return [];
+  const minutes = expandCronField(minuteF, 0, 59);
+  const hours = expandCronField(hourF, 0, 23);
+  if (!minutes || !hours) return [];
+  if (minutes.length * hours.length > MAX_CRON_SLOTS) return [];
+  const days = expandDow(dowF);
+  const out: { days: string; time_hm: string }[] = [];
+  for (const hour of hours) {
+    for (const minute of minutes) {
+      out.push({ days, time_hm: `${pad2(hour)}:${pad2(minute)}` });
+    }
+  }
+  return out;
 }
 
 export function scheduleMatchesDow(days: string, dow: number): boolean {
@@ -395,8 +443,9 @@ export function normalizeDays(days: unknown, fallback = "all"): string {
 export function normalizeTimeHm(value: unknown, fallback = "07:00"): string {
   if (value === undefined || value === null || value === "") return fallback;
   const raw = String(value).trim();
-  if (!TIME_RE.test(raw)) throw new ValidationError("time_hm: формат HH:MM");
-  return raw;
+  const m = TIME_RE.exec(raw);
+  if (!m) throw new ValidationError("time_hm: формат HH:MM");
+  return `${m[1]}:${m[2]}`;
 }
 
 export function normalizeDurationSec(value: unknown, fallback = 60): number {
@@ -427,15 +476,33 @@ export function parseScheduleId(raw: string): number {
   return id;
 }
 
+export function scheduleFiredStamp(id: number): string {
+  const row = db.prepare(`SELECT last_fired FROM schedules WHERE id = ?`).get(id) as
+    | { last_fired?: string }
+    | undefined;
+  return String(row?.last_fired ?? "");
+}
+
+export function markScheduleFired(id: number, stamp: string): void {
+  db.prepare(`UPDATE schedules SET last_fired = ? WHERE id = ?`).run(stamp, id);
+}
+
 export function migrateLegacySchedule(): void {
   const s = getSettings();
   if (s.schedules_imported) return;
   const n = (db.prepare(`SELECT COUNT(*) AS n FROM schedules`).get() as { n: number }).n;
   if (n === 0) {
-    const parsed = cronToSchedule(s.cron_expr);
-    db.prepare(
-      `INSERT INTO schedules (enabled, days, time_hm, duration_sec) VALUES (?, ?, ?, ?)`
-    ).run(Number(s.schedule_enabled), parsed.days, parsed.time_hm, s.duration_sec);
+    const rows = cronToSchedules(s.cron_expr);
+    if (rows.length) {
+      const ins = db.prepare(
+        `INSERT INTO schedules (enabled, days, time_hm, duration_sec) VALUES (?, ?, ?, ?)`
+      );
+      for (const parsed of rows) {
+        ins.run(Number(s.schedule_enabled), parsed.days, parsed.time_hm, s.duration_sec);
+      }
+    } else {
+      console.log("legacy cron not imported (not representable as HH:MM slots):", s.cron_expr);
+    }
   }
   updateSettings({ schedules_imported: true });
 }
