@@ -1,0 +1,66 @@
+<svg xmlns="http://w3.org" viewBox="0 0 160 220" width="100%" height="100%">
+  <!-- Стили для текста и деталей -->
+  <style>
+    .pin-label { font-family: 'Courier New', Courier, monospace; font-size: 11px; fill: #FFFFFF; font-weight: bold; text-anchor: middle; }
+    .board-text { font-family: 'Arial', sans-serif; font-size: 10px; fill: #D0A0FF; font-weight: bold; text-anchor: middle; }
+    .sensor-text { font-family: 'Arial', sans-serif; font-size: 7px; fill: #666666; text-anchor: middle; }
+  </style>
+
+  <!-- Фиолетовая печатная плата (PCB) -->
+  <rect x="10" y="10" width="140" height="200" rx="15" fill="#5E239D" stroke="#421473" stroke-width="3"/>
+
+  <!-- Монтажные отверстия верхней части -->
+  <circle cx="30" cy="32" r="10" fill="#none" stroke="#DAA520" stroke-width="3"/>
+  <circle cx="30" cy="32" r="7" fill="#5E239D"/>
+  
+  <circle cx="130" cy="32" r="10" fill="#none" stroke="#DAA520" stroke-width="3"/>
+  <circle cx="130" cy="32" r="7" fill="#5E239D"/>
+
+  <!-- Металлический датчик BME280 (серебристый корпус с вентиляционным отверстием) -->
+  <rect x="55" y="60" width="50" height="50" rx="6" fill="#D3D3D3" stroke="#A9A9A9" stroke-width="2"/>
+  <rect x="59" y="64" width="42" height="42" rx="4" fill="#E6E6E6"/>
+  <!-- Маленькое вентиляционное отверстие на чипе -->
+  <circle cx="91" cy="73" r="3.5" fill="#333333"/>
+  <!-- Текст маркировки на металлической крышке -->
+  <text x="76" y="88" class="sensor-text">BME</text>
+  <text x="76" y="98" class="sensor-text">280</text>
+
+  <!-- Элементы обвязки (резисторы/стабилизатор) -->
+  <rect x="35" y="125" width="16" height="10" fill="#333333" stroke="#555555" stroke-width="1"/>
+  <rect x="35" y="125" width="3" height="10" fill="#CCCCCC"/>
+  <rect x="48" y="125" width="3" height="10" fill="#CCCCCC"/>
+  
+  <rect x="65" y="125" width="16" height="10" fill="#333333" stroke="#555555" stroke-width="1"/>
+  <rect x="65" y="125" width="3" height="10" fill="#CCCCCC"/>
+  <rect x="78" y="125" width="3" height="10" fill="#CCCCCC"/>
+
+  <rect x="95" y="123" width="25" height="14" fill="#222222"/>
+  <rect x="100" y="137" width="4" height="5" fill="#AA8800"/>
+  <rect x="106" y="137" width="4" height="5" fill="#AA8800"/>
+  <rect x="112" y="137" width="4" height="5" fill="#AA8800"/>
+
+  <!-- Текстовые подписи на плате -->
+  <text x="80" y="28" class="board-text">BME280</text>
+  <text x="80" y="42" class="board-text">I2C Module</text>
+
+  <!-- Контакты для подключения (Пины) -->
+  <!-- 1. VCC -->
+  <circle cx="28" cy="185" r="9" fill="#none" stroke="#DAA520" stroke-width="2.5"/>
+  <circle cx="28" cy="185" r="5" fill="#111111"/>
+  <text x="28" y="165" class="pin-label">VCC</text>
+
+  <!-- 2. GND -->
+  <circle cx="63" cy="185" r="9" fill="#none" stroke="#DAA520" stroke-width="2.5"/>
+  <circle cx="63" cy="185" r="5" fill="#111111"/>
+  <text x="63" y="165" class="pin-label">GND</text>
+
+  <!-- 3. SCL -->
+  <circle cx="98" cy="185" r="9" fill="#none" stroke="#DAA520" stroke-width="2.5"/>
+  <circle cx="98" cy="185" r="5" fill="#111111"/>
+  <text x="98" y="165" class="pin-label">SCL</text>
+
+  <!-- 4. SDA -->
+  <circle cx="133" cy="185" r="9" fill="#none" stroke="#DAA520" stroke-width="2.5"/>
+  <circle cx="133" cy="185" r="5" fill="#111111"/>
+  <text x="133" y="165" class="pin-label">SDA</text>
+</svg>
