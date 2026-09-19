@@ -50,6 +50,14 @@ CREATE TABLE IF NOT EXISTS irrigation_events (
 );
 
 INSERT OR IGNORE INTO settings (id) VALUES (1);
+
+CREATE TABLE IF NOT EXISTS schedules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  days TEXT NOT NULL DEFAULT 'all',
+  time_hm TEXT NOT NULL DEFAULT '07:00',
+  duration_sec INTEGER NOT NULL DEFAULT 60
+);
 `);
 
 function ensureColumn(name: string, ddl: string) {
@@ -82,6 +90,14 @@ export type Reading = {
   humidity: number;
   pressure_hpa: number | null;
   dew_point_c: number;
+};
+
+export type Schedule = {
+  id: number;
+  enabled: boolean;
+  days: string;
+  time_hm: string;
+  duration_sec: number;
 };
 
 export type Settings = {
@@ -240,6 +256,95 @@ export function getEvents(limit = 50) {
       `SELECT ts, action, source, duration_sec FROM irrigation_events ORDER BY ts DESC LIMIT ?`
     )
     .all(limit);
+}
+
+function rowToSchedule(row: Record<string, unknown>): Schedule {
+  return {
+    id: Number(row.id),
+    enabled: Boolean(row.enabled),
+    days: String(row.days ?? "all"),
+    time_hm: String(row.time_hm ?? "07:00"),
+    duration_sec: Number(row.duration_sec ?? 60),
+  };
+}
+
+export function listSchedules(): Schedule[] {
+  migrateLegacySchedule();
+  return db
+    .prepare(`SELECT id, enabled, days, time_hm, duration_sec FROM schedules ORDER BY id`)
+    .all()
+    .map((r) => rowToSchedule(r as Record<string, unknown>));
+}
+
+function migrateLegacySchedule(): void {
+  const n = (db.prepare(`SELECT COUNT(*) AS n FROM schedules`).get() as { n: number }).n;
+  if (n > 0) return;
+  const s = getSettings();
+  const parsed = cronToSchedule(s.cron_expr);
+  db.prepare(
+    `INSERT INTO schedules (enabled, days, time_hm, duration_sec) VALUES (?, ?, ?, ?)`
+  ).run(Number(s.schedule_enabled), parsed.days, parsed.time_hm, s.duration_sec);
+}
+
+export function cronToSchedule(expr: string): { days: string; time_hm: string } {
+  const parts = String(expr || "").trim().split(/\s+/);
+  if (parts.length < 5) return { days: "all", time_hm: "07:00" };
+  const minute = Number(parts[0]);
+  const hour = Number(parts[1]);
+  const dow = parts[4];
+  const mm = Number.isFinite(minute) ? String(minute).padStart(2, "0") : "00";
+  const hh = Number.isFinite(hour) ? String(hour).padStart(2, "0") : "07";
+  const days = !dow || dow === "*" ? "all" : dow.replace(/7/g, "0");
+  return { days, time_hm: `${hh}:${mm}` };
+}
+
+export function scheduleToCron(s: { days: string; time_hm: string }): string {
+  const [hh, mm] = (s.time_hm || "07:00").split(":");
+  const minute = String(Number(mm) || 0);
+  const hour = String(Number(hh) || 0);
+  const days = !s.days || s.days === "all" ? "*" : s.days;
+  return `${minute} ${hour} * * ${days}`;
+}
+
+export function createSchedule(partial: Partial<Schedule> = {}): Schedule {
+  const info = db
+    .prepare(
+      `INSERT INTO schedules (enabled, days, time_hm, duration_sec) VALUES (?, ?, ?, ?)`
+    )
+    .run(
+      Number(partial.enabled ?? true),
+      partial.days ?? "all",
+      partial.time_hm ?? "07:00",
+      Number(partial.duration_sec ?? 60)
+    );
+  return getSchedule(Number(info.lastInsertRowid))!;
+}
+
+export function getSchedule(id: number): Schedule | undefined {
+  const row = db.prepare(`SELECT * FROM schedules WHERE id = ?`).get(id) as
+    | Record<string, unknown>
+    | undefined;
+  return row ? rowToSchedule(row) : undefined;
+}
+
+export function updateSchedule(id: number, partial: Partial<Schedule>): Schedule | undefined {
+  const cur = getSchedule(id);
+  if (!cur) return undefined;
+  const next = {
+    enabled: partial.enabled ?? cur.enabled,
+    days: partial.days ?? cur.days,
+    time_hm: partial.time_hm ?? cur.time_hm,
+    duration_sec: partial.duration_sec ?? cur.duration_sec,
+  };
+  db.prepare(
+    `UPDATE schedules SET enabled = ?, days = ?, time_hm = ?, duration_sec = ? WHERE id = ?`
+  ).run(Number(next.enabled), next.days, next.time_hm, next.duration_sec, id);
+  return getSchedule(id);
+}
+
+export function deleteSchedule(id: number): boolean {
+  const info = db.prepare(`DELETE FROM schedules WHERE id = ?`).run(id);
+  return info.changes > 0;
 }
 
 export function countReadings(): number {
