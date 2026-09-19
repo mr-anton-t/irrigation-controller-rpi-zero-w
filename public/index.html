@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Полив</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/common.js"></script>
+</head>
+<body>
+  <header>
+    <strong>Полив</strong>
+    <nav>
+      <a class="active" href="/">Кнопка</a>
+      <a href="/chart.html">График</a>
+      <a href="/settings.html">Настройки</a>
+    </nav>
+  </header>
+  <main>
+    <p class="muted" id="mode">загрузка…</p>
+    <div class="grid metrics">
+      <div class="card"><div class="muted">Температура</div><div class="value" id="t">—</div></div>
+      <div class="card"><div class="muted">Влажность</div><div class="value" id="h">—</div></div>
+      <div class="card"><div class="muted">Точка росы</div><div class="value" id="d">—</div></div>
+      <div class="card"><div class="muted">Давление</div><div class="value" id="p">—</div></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <button class="water" id="btn">Полить</button>
+      <div class="row">
+        <label class="muted">Длительность, сек</label>
+        <input id="dur" type="number" min="1" max="3600" value="30" style="width:100px" />
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="muted">Расписание</div>
+      <div class="row">
+        <label><input type="checkbox" id="enabled" /> включено</label>
+        <input id="cron" placeholder="0 7 * * *" style="min-width:140px" />
+        <button class="sec" id="save">Сохранить</button>
+      </div>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

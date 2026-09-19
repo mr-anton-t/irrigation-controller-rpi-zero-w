@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Климат</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/common.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <strong>Климат</strong>
+    <nav>
+      <a href="/">Кнопка</a>
+      <a class="active" href="/chart.html">График</a>
+      <a href="/settings.html">Настройки</a>
+    </nav>
+  </header>
+  <main>
+    <div class="card" style="height: min(70dvh, 520px)">
+      <canvas id="chart"></canvas>
+    </div>
+  </main>
+  <script src="/chart-page.js"></script>
+</body>
+</html>
