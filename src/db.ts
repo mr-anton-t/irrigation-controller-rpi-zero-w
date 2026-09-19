@@ -82,6 +82,7 @@ ensureColumn("relay_active_low", "relay_active_low INTEGER NOT NULL DEFAULT 1");
 ensureColumn("i2c_bus", "i2c_bus INTEGER NOT NULL DEFAULT 1");
 ensureColumn("bme280_address", "bme280_address INTEGER NOT NULL DEFAULT 118");
 ensureColumn("ntp_server", "ntp_server TEXT NOT NULL DEFAULT 'pool.ntp.org'");
+ensureColumn("schedules_imported", "schedules_imported INTEGER NOT NULL DEFAULT 0");
 
 export type Reading = {
   id?: number;
@@ -119,7 +120,15 @@ export type Settings = {
   i2c_bus: number;
   bme280_address: number;
   ntp_server: string;
+  schedules_imported: boolean;
 };
+
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
 
 const SETTINGS_KEYS: (keyof Settings)[] = [
   "schedule_enabled",
@@ -140,7 +149,10 @@ const SETTINGS_KEYS: (keyof Settings)[] = [
   "i2c_bus",
   "bme280_address",
   "ntp_server",
+  "schedules_imported",
 ];
+
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export function insertReading(r: Reading): void {
   db.prepare(
@@ -195,6 +207,7 @@ function rowToSettings(row: Record<string, unknown>): Settings {
     i2c_bus: Number(row.i2c_bus ?? 1),
     bme280_address: Number(row.bme280_address ?? 0x76),
     ntp_server: String(row.ntp_server || "pool.ntp.org"),
+    schedules_imported: Boolean(row.schedules_imported),
   };
 }
 
@@ -234,12 +247,14 @@ export function updateSettings(partial: Partial<Settings>): Settings {
       relay_active_low = @relay_active_low,
       i2c_bus = @i2c_bus,
       bme280_address = @bme280_address,
-      ntp_server = @ntp_server
+      ntp_server = @ntp_server,
+      schedules_imported = @schedules_imported
      WHERE id = 1`
   ).run({
     ...next,
     schedule_enabled: Number(next.schedule_enabled),
     relay_active_low: Number(next.relay_active_low),
+    schedules_imported: Number(next.schedules_imported),
   });
   return getSettings();
 }
@@ -269,54 +284,172 @@ function rowToSchedule(row: Record<string, unknown>): Schedule {
 }
 
 export function listSchedules(): Schedule[] {
-  migrateLegacySchedule();
   return db
     .prepare(`SELECT id, enabled, days, time_hm, duration_sec FROM schedules ORDER BY id`)
     .all()
     .map((r) => rowToSchedule(r as Record<string, unknown>));
 }
 
-function migrateLegacySchedule(): void {
-  const n = (db.prepare(`SELECT COUNT(*) AS n FROM schedules`).get() as { n: number }).n;
-  if (n > 0) return;
-  const s = getSettings();
-  const parsed = cronToSchedule(s.cron_expr);
-  db.prepare(
-    `INSERT INTO schedules (enabled, days, time_hm, duration_sec) VALUES (?, ?, ?, ?)`
-  ).run(Number(s.schedule_enabled), parsed.days, parsed.time_hm, s.duration_sec);
+function cronFieldSingle(field: string, min: number, max: number): number | null {
+  if (!/^\d+$/.test(field)) return null;
+  const n = Number(field);
+  if (!Number.isInteger(n) || n < min || n > max) return null;
+  return n;
+}
+
+function expandDow(field: string): string {
+  const raw = String(field || "").trim();
+  if (!raw || raw === "*") return "all";
+  const out = new Set<number>();
+  for (const token of raw.split(",")) {
+    const piece = token.trim();
+    if (!piece) continue;
+    const [rangePart, stepPart] = piece.split("/");
+    const step = stepPart === undefined ? 1 : Number(stepPart);
+    if (!Number.isInteger(step) || step < 1) continue;
+    let start: number;
+    let end: number;
+    if (rangePart === "*") {
+      start = 0;
+      end = 6;
+    } else if (rangePart.includes("-")) {
+      const [aStr, bStr] = rangePart.split("-");
+      start = Number(aStr);
+      end = Number(bStr);
+    } else {
+      start = Number(rangePart);
+      end = start;
+    }
+    if (!Number.isInteger(start) || !Number.isInteger(end)) continue;
+    if (start === 7) start = 0;
+    if (end === 7) end = 0;
+    if (start > end) {
+      for (let i = start; i <= 7; i += step) {
+        const d = i === 7 ? 0 : i;
+        if (d >= 0 && d <= 6) out.add(d);
+      }
+      for (let i = 0; i <= end; i += step) {
+        if (i >= 0 && i <= 6) out.add(i);
+      }
+      continue;
+    }
+    for (let i = start; i <= end; i += step) {
+      const d = i === 7 ? 0 : i;
+      if (d >= 0 && d <= 6) out.add(d);
+    }
+  }
+  if (!out.size) return "all";
+  if (out.size === 7) return "all";
+  return [...out].sort((a, b) => a - b).join(",");
 }
 
 export function cronToSchedule(expr: string): { days: string; time_hm: string } {
   const parts = String(expr || "").trim().split(/\s+/);
-  if (parts.length < 5) return { days: "all", time_hm: "07:00" };
-  const minute = Number(parts[0]);
-  const hour = Number(parts[1]);
-  const dow = parts[4];
-  const mm = Number.isFinite(minute) ? String(minute).padStart(2, "0") : "00";
-  const hh = Number.isFinite(hour) ? String(hour).padStart(2, "0") : "07";
-  const days = !dow || dow === "*" ? "all" : dow.replace(/7/g, "0");
-  return { days, time_hm: `${hh}:${mm}` };
+  let minuteF: string;
+  let hourF: string;
+  let dowF: string;
+  if (parts.length >= 6) {
+    minuteF = parts[1];
+    hourF = parts[2];
+    dowF = parts[5];
+  } else if (parts.length >= 5) {
+    minuteF = parts[0];
+    hourF = parts[1];
+    dowF = parts[4];
+  } else {
+    return { days: "all", time_hm: "07:00" };
+  }
+  const minute = cronFieldSingle(minuteF, 0, 59);
+  const hour = cronFieldSingle(hourF, 0, 23);
+  const time_hm =
+    minute === null || hour === null
+      ? "07:00"
+      : `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  return { days: expandDow(dowF), time_hm };
 }
 
-export function scheduleToCron(s: { days: string; time_hm: string }): string {
-  const [hh, mm] = (s.time_hm || "07:00").split(":");
-  const minute = String(Number(mm) || 0);
-  const hour = String(Number(hh) || 0);
-  const days = !s.days || s.days === "all" ? "*" : s.days;
-  return `${minute} ${hour} * * ${days}`;
+export function scheduleMatchesDow(days: string, dow: number): boolean {
+  if (!days || days === "all" || days === "*") return true;
+  return days.split(",").map((x) => x.trim()).includes(String(dow));
+}
+
+export function normalizeDays(days: unknown, fallback = "all"): string {
+  if (days === undefined || days === null) return fallback;
+  const raw = String(days).trim();
+  if (!raw) throw new ValidationError("days: выберите хотя бы один день");
+  if (raw === "all" || raw === "*") return "all";
+  const out = new Set<number>();
+  for (const part of raw.split(",")) {
+    const token = part.trim();
+    if (!token) continue;
+    if (!/^[0-6]$/.test(token)) {
+      throw new ValidationError("days: допустимы 0–6 или all");
+    }
+    out.add(Number(token));
+  }
+  if (!out.size) throw new ValidationError("days: выберите хотя бы один день");
+  if (out.size === 7) return "all";
+  return [...out].sort((a, b) => a - b).join(",");
+}
+
+export function normalizeTimeHm(value: unknown, fallback = "07:00"): string {
+  if (value === undefined || value === null || value === "") return fallback;
+  const raw = String(value).trim();
+  if (!TIME_RE.test(raw)) throw new ValidationError("time_hm: формат HH:MM");
+  return raw;
+}
+
+export function normalizeDurationSec(value: unknown, fallback = 60): number {
+  if (value === undefined || value === null || value === "") return fallback;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > 3600) {
+    throw new ValidationError("duration_sec: целое число 1–3600");
+  }
+  return n;
+}
+
+export function normalizeEnabled(value: unknown, fallback = true): boolean {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "boolean") return value;
+  if (value === 1 || value === "1" || value === "true") return true;
+  if (value === 0 || value === "0" || value === "false") return false;
+  throw new ValidationError("enabled: ожидается boolean");
+}
+
+export function parseScheduleId(raw: string): number {
+  if (!/^\d+$/.test(String(raw || ""))) {
+    throw new ValidationError("id: ожидается целое число");
+  }
+  const id = Number(raw);
+  if (!Number.isInteger(id) || id < 1) {
+    throw new ValidationError("id: ожидается целое число");
+  }
+  return id;
+}
+
+export function migrateLegacySchedule(): void {
+  const s = getSettings();
+  if (s.schedules_imported) return;
+  const n = (db.prepare(`SELECT COUNT(*) AS n FROM schedules`).get() as { n: number }).n;
+  if (n === 0) {
+    const parsed = cronToSchedule(s.cron_expr);
+    db.prepare(
+      `INSERT INTO schedules (enabled, days, time_hm, duration_sec) VALUES (?, ?, ?, ?)`
+    ).run(Number(s.schedule_enabled), parsed.days, parsed.time_hm, s.duration_sec);
+  }
+  updateSettings({ schedules_imported: true });
 }
 
 export function createSchedule(partial: Partial<Schedule> = {}): Schedule {
+  const enabled = normalizeEnabled(partial.enabled, true);
+  const days = normalizeDays(partial.days, "all");
+  const time_hm = normalizeTimeHm(partial.time_hm, "07:00");
+  const duration_sec = normalizeDurationSec(partial.duration_sec, 60);
   const info = db
     .prepare(
       `INSERT INTO schedules (enabled, days, time_hm, duration_sec) VALUES (?, ?, ?, ?)`
     )
-    .run(
-      Number(partial.enabled ?? true),
-      partial.days ?? "all",
-      partial.time_hm ?? "07:00",
-      Number(partial.duration_sec ?? 60)
-    );
+    .run(Number(enabled), days, time_hm, duration_sec);
   return getSchedule(Number(info.lastInsertRowid))!;
 }
 
@@ -331,10 +464,13 @@ export function updateSchedule(id: number, partial: Partial<Schedule>): Schedule
   const cur = getSchedule(id);
   if (!cur) return undefined;
   const next = {
-    enabled: partial.enabled ?? cur.enabled,
-    days: partial.days ?? cur.days,
-    time_hm: partial.time_hm ?? cur.time_hm,
-    duration_sec: partial.duration_sec ?? cur.duration_sec,
+    enabled: normalizeEnabled(partial.enabled, cur.enabled),
+    days: partial.days !== undefined ? normalizeDays(partial.days, cur.days) : cur.days,
+    time_hm: partial.time_hm !== undefined ? normalizeTimeHm(partial.time_hm, cur.time_hm) : cur.time_hm,
+    duration_sec:
+      partial.duration_sec !== undefined
+        ? normalizeDurationSec(partial.duration_sec, cur.duration_sec)
+        : cur.duration_sec,
   };
   db.prepare(
     `UPDATE schedules SET enabled = ?, days = ?, time_hm = ?, duration_sec = ? WHERE id = ?`
