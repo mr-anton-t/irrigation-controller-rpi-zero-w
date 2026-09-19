@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 820" width="1100" height="820" role="img" aria-label="Wiring Pi Zero W, BME280, relay, Li-ion and charger">
+  <rect width="1100" height="820" fill="#0f1412"/>
+  <text x="28" y="36" fill="#e8f0ea" font-family="system-ui,sans-serif" font-size="22" font-weight="700">Подключение Raspberry Pi Zero W</text>
+  <text x="28" y="58" fill="#8aa394" font-family="system-ui,sans-serif" font-size="13">Li-ion 3.7V → TP4056 → boost 5V → Pi. BME280 I2C, реле GPIO17.</text>
+  <rect x="40" y="80" width="240" height="150" rx="16" fill="#1a2320" stroke="#2a3732"/>
+  <text x="58" y="108" fill="#e8c547" font-family="system-ui,sans-serif" font-size="16" font-weight="700">Li-ion 3.7V 1S</text>
+  <text x="58" y="160" fill="#e8f0ea" font-family="ui-monospace,monospace" font-size="13">B+ / B− → TP4056</text>
+  <rect x="330" y="80" width="280" height="150" rx="16" fill="#1a2320" stroke="#2a3732"/>
+  <text x="348" y="108" fill="#e07a3d" font-family="system-ui,sans-serif" font-size="16" font-weight="700">TP4056 + защита</text>
+  <text x="348" y="156" fill="#e8f0ea" font-family="ui-monospace,monospace" font-size="13">USB IN 5V</text>
+  <text x="348" y="178" fill="#e8f0ea" font-family="ui-monospace,monospace" font-size="13">B+/B− банка, OUT → boost</text>
+  <rect x="660" y="80" width="400" height="150" rx="16" fill="#1a2320" stroke="#2a3732"/>
+  <text x="678" y="108" fill="#3dba7a" font-family="system-ui,sans-serif" font-size="16" font-weight="700">Boost 5V ≥2A</text>
+  <text x="678" y="156" fill="#e8f0ea" font-family="ui-monospace,monospace" font-size="13">VOUT+ → Pi pin 2 и реле VCC</text>
+  <text x="678" y="178" fill="#e8f0ea" font-family="ui-monospace,monospace" font-size="13">VOUT− → Pi GND</text>
+  <rect x="40" y="290" width="300" height="240" rx="16" fill="#1a2320" stroke="#2a3732"/>
+  <text x="58" y="318" fill="#3dba7a" font-family="system-ui,sans-serif" font-size="16" font-weight="700">Pi Zero W</text>
+  <text x="58" y="348" fill="#e8f0ea" font-family="ui-monospace,monospace" font-size="13">3V3 pin1 · 5V pin2 · SDA pin3</text>
+  <text x="58" y="372" fill="#e8f0ea" font-family="ui-monospace,monospace" font-size="13">SCL pin5 · GND pin6/9 · GPIO17 pin11</text>
+  <rect x="400" y="290" width="300" height="240" rx="16" fill="#1a2320" stroke="#2a3732"/>
+  <text x="418" y="318" fill="#4aa3e0" font-family="system-ui,sans-serif" font-size="16" font-weight="700">BME280</text>
+  <text x="418" y="352" fill="#e8f0ea" font-family="ui-monospace,monospace" font-size="13">VIN 3V3 · GND · SDA GPIO2 · SCL GPIO3</text>
+  <rect x="740" y="290" width="320" height="240" rx="16" fill="#1a2320" stroke="#2a3732"/>
+  <text x="758" y="318" fill="#e07a3d" font-family="system-ui,sans-serif" font-size="16" font-weight="700">Реле</text>
+  <text x="758" y="352" fill="#e8f0ea" font-family="ui-monospace,monospace" font-size="13">VCC 5V · GND · IN GPIO17</text>
+  <text x="758" y="376" fill="#8aa394" font-family="system-ui,sans-serif" font-size="13">насос 220V только COM/NO</text>
+  <rect x="40" y="560" width="1020" height="220" rx="16" fill="#1a2320" stroke="#2a3732"/>
+  <text x="58" y="590" fill="#e8f0ea" font-family="system-ui,sans-serif" font-size="15" font-weight="700">Сборка питания</text>
+  <text x="58" y="620" fill="#c9d6cc" font-family="system-ui,sans-serif" font-size="14">1S → TP4056 B+/B- → OUT → boost VIN → 5V на pin 2. USB Zero не подключать одновременно.</text>
+  <text x="58" y="648" fill="#c9d6cc" font-family="system-ui,sans-serif" font-size="14">Только 1S 4.2V max. TP4056 с защитой. Boost 1–2A. Насос не с банки напрямую.</text>
+</svg>
