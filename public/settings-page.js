@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
 let currentTheme = "system";
+
 function markTheme(theme) {
   currentTheme = theme;
   document.querySelectorAll(".seg button").forEach((b) => {
@@ -8,6 +9,7 @@ function markTheme(theme) {
   applyTheme(theme);
   localStorage.setItem(THEME_KEY, theme);
 }
+
 async function fill() {
   const [s, net] = await Promise.all([
     loadSettings(),
@@ -22,16 +24,20 @@ async function fill() {
   $("static_ip").value = s.static_ip;
   $("gateway").value = s.gateway;
   $("dns").value = s.dns;
+  $("ntp_server").value = s.ntp_server || "pool.ntp.org";
   $("relay_gpio").value = s.relay_gpio;
   $("relay_active_low").checked = s.relay_active_low;
   $("i2c_bus").value = s.i2c_bus;
   $("bme280_address").value = String(s.bme280_address);
-  $("netnow").textContent = `now: ${net.hostname} \u00b7 ${net.primary_ip}` + (net.mock ? " (mock)" : "");
+  $("netnow").textContent =
+    `сейчас: ${net.hostname} \u00b7 ${net.primary_ip}` + (net.mock ? " (mock)" : "");
   markTheme(s.theme);
 }
+
 document.querySelectorAll(".seg button").forEach((b) => {
   b.onclick = () => markTheme(b.dataset.theme);
 });
+
 $("save").onclick = async () => {
   const body = {
     temp_unit: $("temp_unit").value,
@@ -44,6 +50,7 @@ $("save").onclick = async () => {
     static_ip: $("static_ip").value,
     gateway: $("gateway").value,
     dns: $("dns").value,
+    ntp_server: $("ntp_server").value.trim() || "pool.ntp.org",
     relay_gpio: Number($("relay_gpio").value),
     relay_active_low: $("relay_active_low").checked,
     i2c_bus: Number($("i2c_bus").value),
@@ -55,6 +62,7 @@ $("save").onclick = async () => {
     body: JSON.stringify(body),
   }).then((r) => r.json());
   applyTheme(res.theme);
-  $("toast").textContent = res.network_apply?.note || "saved";
+  $("toast").textContent = res.network_apply?.note || "Сохранено";
 };
+
 fill();
