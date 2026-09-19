@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      USE_MOCK: "true"
+      PORT: "3000"
+      DB_PATH: /data/irrigation.db
+      SAMPLE_INTERVAL_MS: "10000"
+    volumes:
+      - irrigation-data:/data
+
+volumes:
+  irrigation-data:
