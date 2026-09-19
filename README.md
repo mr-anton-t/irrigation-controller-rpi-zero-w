@@ -148,6 +148,22 @@ http://localhost:3000
 - `/chart.html` — температура, влажность, точка росы
 - `/settings.html` — единицы, тема, Wi‑Fi, IP, NTP, пины
 
+## CI
+
+На каждый PR и на `push` в `main` GitHub Actions:
+
+1. Собирает TypeScript (`tsc --noEmit`).
+2. Поднимает тот же Docker Compose стек, что и локально (`USE_MOCK=true`).
+3. Стучится в UI и API: `/`, `/settings.html`, `/chart.html`, `/api/status`, `/api/settings`, `/api/network`, `/api/readings`, `POST /api/relay`.
+4. Проверяет, что RSS процесса ≤ 96 МБ и контейнер ≤ 128 МБ (бюджет Pi Zero W, 512 МБ).
+
+Если smoke-тест на PR зелёный (только PR из этого репозитория, не форк):
+
+- первый прогон назначает Copilot (`copilot-pull-request-reviewer`) ревьюером;
+- каждый следующий коммит в тот же PR снова гоняет тесты и при успехе повторно запрашивает Copilot review.
+
+Workflow: [`.github/workflows/deploy-and-copilot.yml`](.github/workflows/deploy-and-copilot.yml).
+
 ## На самой Pi
 
 ```bash

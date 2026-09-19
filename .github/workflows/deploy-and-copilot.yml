@@ -1,0 +1,202 @@
+name: Deploy test and Copilot review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-test:
+    name: Docker deploy smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: TypeScript build
+        run: |
+          npm install
+          npx tsc --noEmit
+
+      - name: Build and start compose stack
+        run: docker compose up --build -d --wait --wait-timeout 120 || docker compose up --build -d
+
+      - name: Wait until the app answers
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:3000/api/status >/tmp/status.json 2>/dev/null; then
+              echo "up after ${i} attempts"
+              cat /tmp/status.json
+              exit 0
+            fi
+            echo "waiting (${i}/40)"
+            sleep 3
+          done
+          echo "container logs:"
+          docker compose logs --no-color || true
+          exit 1
+
+      - name: Smoke-test HTTP and API
+        run: |
+          set -euo pipefail
+          curl -fsS -o /dev/null -w "GET / %{http_code}\n" http://127.0.0.1:3000/
+          curl -fsS -o /dev/null -w "GET /settings.html %{http_code}\n" http://127.0.0.1:3000/settings.html
+          curl -fsS -o /dev/null -w "GET /chart.html %{http_code}\n" http://127.0.0.1:3000/chart.html
+          STATUS=$(curl -fsS http://127.0.0.1:3000/api/status)
+          echo "$STATUS"
+          echo "$STATUS" | grep -q '"mock":true'
+          curl -fsS http://127.0.0.1:3000/api/settings >/dev/null
+          curl -fsS http://127.0.0.1:3000/api/network >/dev/null
+          curl -fsS http://127.0.0.1:3000/api/readings >/dev/null
+          curl -fsS -X POST http://127.0.0.1:3000/api/relay \
+            -H 'content-type: application/json' \
+            -d '{"on":true,"durationSec":1}' >/dev/null
+          echo "deploy smoke test passed"
+
+      - name: Pi Zero W memory budget
+        env:
+          MAX_RSS_MB: "96"
+          MAX_CONTAINER_MB: "128"
+        run: |
+          set -euo pipefail
+          curl -fsS http://127.0.0.1:3000/api/readings >/dev/null
+          curl -fsS http://127.0.0.1:3000/api/events >/dev/null
+          curl -fsS http://127.0.0.1:3000/api/status >/tmp/status.json
+          echo "status after load:"
+          cat /tmp/status.json
+          echo
+          python3 - <<'PY'
+          import json, os, sys
+          data = json.load(open("/tmp/status.json"))
+          mem = data.get("memory") or {}
+          rss = float(mem.get("rss_mb") or 0)
+          heap = float(mem.get("heap_used_mb") or 0)
+          limit = float(os.environ["MAX_RSS_MB"])
+          print(f"process RSS={rss} MB heap_used={heap} MB limit={limit} MB")
+          print("Pi Zero W has 512 MB total; Lite OS typically keeps ~120-180 MB.")
+          print("Budget leaves room for OS + Wi-Fi + this Node process.")
+          if rss <= 0:
+              print("memory missing from /api/status", file=sys.stderr)
+              sys.exit(1)
+          if rss > limit:
+              print(f"RSS {rss} MB exceeds Pi Zero W budget {limit} MB", file=sys.stderr)
+              sys.exit(1)
+          print("process RSS within Pi Zero W budget")
+          PY
+          STATS=$(docker stats --no-stream --format '{{.Name}} rss={{.MemUsage}}')
+          echo "$STATS"
+          python3 -c '
+          import os, re, sys
+          text = sys.argv[1]
+          print(text.strip())
+          limit = float(os.environ["MAX_CONTAINER_MB"])
+          if not text.strip():
+              print("docker stats returned no lines", file=sys.stderr)
+              sys.exit(1)
+          m = re.search(r"rss=([0-9.]+)\s*([KMG])i?B", text, re.I)
+          if not m:
+              print("could not parse docker stats; failing container cap", file=sys.stderr)
+              sys.exit(1)
+          val, unit = float(m.group(1)), m.group(2).upper()
+          mb = val / 1024 if unit == "K" else val if unit == "M" else val * 1024
+          print(f"container usage={mb:.1f} MB limit={limit} MB")
+          if mb > limit:
+              print(f"container {mb:.1f} MB exceeds Pi Zero W budget {limit} MB", file=sys.stderr)
+              sys.exit(1)
+          print("container RSS within Pi Zero W budget")
+          ' "$STATS"
+
+      - name: Stop stack
+        if: always()
+        run: docker compose down -v
+
+  request-copilot:
+    name: Assign Copilot review after green tests
+    needs: deploy-test
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.draft == false
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Request or re-request Copilot review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          ACTION: ${{ github.event.action }}
+        run: |
+          set -euo pipefail
+          BOT_LOGIN="copilot-pull-request-reviewer[bot]"
+
+          echo "PR #${PR} action=${ACTION}: requesting Copilot review after green deploy test"
+
+          OWNER="${REPO%%/*}"
+          NAME="${REPO##*/}"
+          PR_NODE=$(gh api graphql -f query="query(\$o:String!,\$n:String!,\$p:Int!){repository(owner:\$o,name:\$n){pullRequest(number:\$p){id}}}" -F o="${OWNER}" -F n="${NAME}" -F p="${PR}" --jq '.data.repository.pullRequest.id')
+
+          if [ -z "${PR_NODE}" ]; then
+            echo "could not resolve pull request node id" >&2
+            exit 1
+          fi
+
+          RESP=$(gh api graphql -f query='mutation($pr:ID!,$bot:String!){requestReviewsByLogin(input:{pullRequestId:$pr,botLogins:[$bot],union:true}){clientMutationId pullRequest{reviewRequests(first:20){nodes{requestedReviewer{... on Bot{login}}}}}}}' -F pr="${PR_NODE}" -F bot="${BOT_LOGIN}")
+          echo "$RESP"
+
+          echo "$RESP" | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          errs = data.get("errors") or []
+          if errs:
+              print("requestReviewsByLogin errors:", errs, file=sys.stderr)
+              sys.exit(1)
+          payload = (data.get("data") or {}).get("requestReviewsByLogin")
+          if not payload:
+              print("requestReviewsByLogin returned no data", file=sys.stderr)
+              sys.exit(1)
+          nodes = (((payload.get("pullRequest") or {}).get("reviewRequests") or {}).get("nodes") or [])
+          logins = []
+          for node in nodes:
+              reviewer = node.get("requestedReviewer") or {}
+              login = reviewer.get("login") or ""
+              if login:
+                  logins.append(login)
+          print("review requests:", logins)
+          if not any("copilot-pull-request-reviewer" in login for login in logins):
+              print("Copilot bot not present in reviewRequests after mutation", file=sys.stderr)
+              sys.exit(1)
+          print("Copilot review requested via requestReviewsByLogin")
+          '
+
+          if [ "${ACTION}" = "synchronize" ]; then
+            BODY="Deploy-тест снова зелёный на этом PR. Повторно запросил review у Copilot."
+          else
+            BODY="Deploy-тест прошёл. Назначил Copilot (copilot-pull-request-reviewer) ревьюером."
+          fi
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${REPO}/issues/${PR}/comments" \
+            -f "body=${BODY}"
