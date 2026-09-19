@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS settings (
   relay_gpio INTEGER NOT NULL DEFAULT 17,
   relay_active_low INTEGER NOT NULL DEFAULT 1,
   i2c_bus INTEGER NOT NULL DEFAULT 1,
-  bme280_address INTEGER NOT NULL DEFAULT 118
+  bme280_address INTEGER NOT NULL DEFAULT 118,
+  ntp_server TEXT NOT NULL DEFAULT 'pool.ntp.org'
 );
 CREATE TABLE IF NOT EXISTS irrigation_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,6 +66,7 @@ ensureColumn("relay_gpio", "relay_gpio INTEGER NOT NULL DEFAULT 17");
 ensureColumn("relay_active_low", "relay_active_low INTEGER NOT NULL DEFAULT 1");
 ensureColumn("i2c_bus", "i2c_bus INTEGER NOT NULL DEFAULT 1");
 ensureColumn("bme280_address", "bme280_address INTEGER NOT NULL DEFAULT 118");
+ensureColumn("ntp_server", "ntp_server TEXT NOT NULL DEFAULT 'pool.ntp.org'");
 
 export type Reading = {
   id?: number; ts: number; temp_c: number; humidity: number;
@@ -78,11 +80,12 @@ export type Settings = {
   wifi_ssid: string; wifi_password: string; domain: string;
   static_ip: string; gateway: string; dns: string;
   relay_gpio: number; relay_active_low: boolean; i2c_bus: number; bme280_address: number;
+  ntp_server: string;
 };
 const SETTINGS_KEYS: (keyof Settings)[] = [
   "schedule_enabled","cron_expr","duration_sec","temp_unit","humidity_unit","pressure_unit",
   "theme","wifi_ssid","wifi_password","domain","static_ip","gateway","dns",
-  "relay_gpio","relay_active_low","i2c_bus","bme280_address",
+  "relay_gpio","relay_active_low","i2c_bus","bme280_address","ntp_server",
 ];
 export function insertReading(r: Reading): void {
   db.prepare(`INSERT INTO readings (ts, temp_c, humidity, pressure_hpa, dew_point_c)
@@ -115,6 +118,7 @@ function rowToSettings(row: Record<string, unknown>): Settings {
     relay_active_low: row.relay_active_low === undefined ? true : Boolean(row.relay_active_low),
     i2c_bus: Number(row.i2c_bus ?? 1),
     bme280_address: Number(row.bme280_address ?? 0x76),
+    ntp_server: String(row.ntp_server || "pool.ntp.org"),
   };
 }
 export function getSettings(): Settings {
@@ -131,7 +135,8 @@ export function updateSettings(partial: Partial<Settings>): Settings {
       temp_unit=@temp_unit, humidity_unit=@humidity_unit, pressure_unit=@pressure_unit,
       theme=@theme, wifi_ssid=@wifi_ssid, wifi_password=@wifi_password, domain=@domain,
       static_ip=@static_ip, gateway=@gateway, dns=@dns, relay_gpio=@relay_gpio,
-      relay_active_low=@relay_active_low, i2c_bus=@i2c_bus, bme280_address=@bme280_address
+      relay_active_low=@relay_active_low, i2c_bus=@i2c_bus, bme280_address=@bme280_address,
+      ntp_server=@ntp_server
      WHERE id=1`).run({ ...next, schedule_enabled: Number(next.schedule_enabled), relay_active_low: Number(next.relay_active_low) });
   return getSettings();
 }
