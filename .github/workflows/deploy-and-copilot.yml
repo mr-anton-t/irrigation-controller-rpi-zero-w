@@ -75,7 +75,6 @@ jobs:
           MAX_CONTAINER_MB: "128"
         run: |
           set -euo pipefail
-          # Warm heap a bit like the chart page: load 24h readings twice.
           curl -fsS http://127.0.0.1:3000/api/readings >/dev/null
           curl -fsS http://127.0.0.1:3000/api/events >/dev/null
           curl -fsS http://127.0.0.1:3000/api/status >/tmp/status.json
@@ -102,12 +101,11 @@ jobs:
           PY
           STATS=$(docker stats --no-stream --format '{{.Name}} rss={{.MemUsage}}')
           echo "$STATS"
-          echo "$STATS" | python3 - <<'PY'
+          python3 -c '
           import os, re, sys
-          text = sys.stdin.read()
+          text = sys.argv[1]
           print(text.strip())
           limit = float(os.environ["MAX_CONTAINER_MB"])
-          # docker stats: "54.23MiB / 7GiB" or "123.4MB / ..."
           m = re.search(r"rss=([0-9.]+)\s*([KMG])i?B", text, re.I)
           if not m:
               print("could not parse docker stats; skipping container cap")
@@ -119,7 +117,7 @@ jobs:
               print(f"container {mb:.1f} MB exceeds Pi Zero W budget {limit} MB", file=sys.stderr)
               sys.exit(1)
           print("container RSS within Pi Zero W budget")
-          PY
+          ' "$STATS"
 
       - name: Stop stack
         if: always()
