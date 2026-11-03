@@ -1,0 +1,501 @@
+{
+  "name": "ORCH: auth-service release",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "orch/auth-release",
+        "responseMode": "responseNode"
+      },
+      "id": "1a2b3c4d-0001-4000-8000-000000000001",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst orchText = JSON.stringify(body);\nreturn [{ json: { orch: orchText, orchObj: body } }];"
+      },
+      "id": "1a2b3c4d-0002-4000-8000-000000000002",
+      "name": "Parse ORCH",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Execute the ORCH block below. Follow STEPS in order. Use only SKILLS listed. After each step run CHECK. On failure execute FAIL and ALERT. Finish with REPORT as one line.\n\n{{ $json.orch }}/n\n\nSystem instructions: load from ai/orch-system-prompt.txt",
+        "options": {
+          "systemMessage": "You are a task orchestrator. Execute ORCH blocks strictly: no skipped steps, no reordering without DEPS, CHECK after every step, FAIL on error, REPORT at the end as one line. Never invent skills outside SKILLS."
+        }
+      },
+      "id": "1a2b3c4d-0003-4000-8000-000000000003",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "1a2b3c4d-0004-4000-8000-000000000004",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [680, 520]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Ping /health endpoint. Input: url. Output: status code.",
+        "url": "=https://auth.example.com/health",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "1a2b3c4d-0005-4000-8000-000000000005",
+      "name": "Tool: health",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 2,
+      "position": [900, 140]
+    },
+    {
+      "parameters": {
+        "toolDescription": "pg_dump users table. Input: db connection. Output: dump file path.",
+        "operation": "executeQuery",
+        "query": "SELECT pg_catalog.pg_dump('users')",
+        "additionalFields": {
+          "nodeVersion": 2.2
+        }
+      },
+      "id": "1a2b3c4d-0006-4000-8000-000000000006",
+      "name": "Tool: backup",
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Rollout container by tag. Input: image tag. Output: new pod status.",
+        "command": "=docker pull auth:{{ $json.tag }} && docker compose up -d auth"
+      },
+      "id": "1a2b3c4d-0007-4000-8000-000000000007",
+      "name": "Tool: deploy",
+      "type": "n8n-nodes-base.sshTool",
+      "typeVersion": 1,
+      "position": [900, 460]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Login + refresh token test. Input: credentials. Output: JWT.",
+        "method": "POST",
+        "url": "=https://auth.example.com/login",
+        "sendBody": true,
+        "body": "={{ { username: $json.username, password: $json.password } }}/n",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "1a2b3c4d-0008-4000-8000-000000000008",
+      "name": "Tool: smoke",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 2,
+      "position": [900, 620]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-health-200",
+              "leftValue": "={{ $json.statusCode }}/n",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": false
+        }
+      },
+      "id": "1a2b3c4d-0009-4000-8000-000000000009",
+      "name": "IF: health 200",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 140]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-dump-ok",
+              "leftValue": "={{ $json.rowCount }}/n",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": false
+        }
+      },
+      "id": "1a2b3c4d-000a-4000-8000-00000000000a",
+      "name": "IF: dump ok",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-pod-running",
+              "leftValue": "={{ $json.stdout }}/n",
+              "rightValue": "running",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": false
+        }
+      },
+      "id": "1a2b3c4d-000b-4000-8000-00000000000b",
+      "name": "IF: pod running",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 460]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-jwt-valid",
+              "leftValue": "={{ $json.access_token }}/n",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": false
+        }
+      },
+      "id": "1a2b3c4d-000c-4000-8000-00000000000c",
+      "name": "IF: JWT valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 620]
+    },
+    {
+      "parameters": {
+        "command": "=docker tag auth:{{ $json.prevTag }} auth:latest && docker compose up -d auth"
+      },
+      "id": "1a2b3c4d-000d-4000-8000-00000000000d",
+      "name": "FAIL: rollback",
+      "type": "n8n-nodes-base.sshTool",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "channel": "deploy",
+        "text": "=ORCH FAIL: auth-service release. Step failed. Rolled back to {{ $json.prevTag }}. Check logs.",
+        "otherOptions": {
+          "authentication": "accessToken"
+        }
+      },
+      "id": "1a2b3c4d-000e-4000-8000-00000000000e",
+      "name": "Slack: ALERT",
+      "type": "n8n-nodes-base.slackTool",
+      "typeVersion": 2.2,
+      "position": [1340, 460]
+    },
+    {
+      "parameters": {
+        "channel": "deploy",
+        "text": "=ORCH REPORT: auth-service {{ $json.version }} deployed in {{ $json.duration }}s. Smoke: {{ $json.smokeResult }}/n",
+        "otherOptions": {
+          "authentication": "accessToken"
+        }
+      },
+      "id": "1a2b3c4d-000f-4000-8000-00000000000f",
+      "name": "Slack: REPORT",
+      "type": "n8n-nodes-base.slackTool",
+      "typeVersion": 2.2,
+      "position": [1340, 620]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'ok', report: $json } }}/n"
+      },
+      "id": "1a2b3c4d-0010-4000-8000-000000000010",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1560, 620]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse ORCH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse ORCH": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: health": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: backup": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: deploy": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: smoke": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "IF: health 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: health 200": {
+      "main": [
+        [
+          {
+            "node": "IF: dump ok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: ALERT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: dump ok": {
+      "main": [
+        [
+          {
+            "node": "IF: pod running",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL: rollback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: pod running": {
+      "main": [
+        [
+          {
+            "node": "IF: JWT valid",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL: rollback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: JWT valid": {
+      "main": [
+        [
+          {
+            "node": "Slack: REPORT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL: rollback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL: rollback": {
+      "main": [
+        [
+          {
+            "node": "Slack: ALERT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: REPORT": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "versionId": "orch-auth-v1",
+  "id": "orch-auth-service-release-v1",
+  "meta": {
+    "instanceId": ""
+  },
+  "tags": [
+    {
+      "name": "orch"
+    },
+    {
+      "name": "auth-service"
+    }
+  ]
+}
