@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "grok-4",
+  "instructions": [
+    "ai/orch-system-prompt.txt"
+  ],
+  "rules": {
+    "orch_template": "ai/orch-template.md"
+  }
+}
